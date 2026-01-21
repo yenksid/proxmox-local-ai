@@ -1,0 +1,14 @@
+[Unit]
+Description=Llama 3.2 AI Assistant
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root
+ExecStart=/root/start_ai.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
