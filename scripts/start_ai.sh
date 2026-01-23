@@ -6,4 +6,5 @@
     --port 8080 \
     -c 4096 \
     --temp 0.7 \
-    -t 4
+    -t 4 \
+    --path /root/public
