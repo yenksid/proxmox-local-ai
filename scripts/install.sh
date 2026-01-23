@@ -3,7 +3,7 @@
 # ==============================================================================
 # AUTOMATED INSTALLER: Local AI Server on Proxmox LXC
 # Installs llama.cpp engine + Llama 3.2 3B Model + Custom UI + Systemd Service
-# Version: 1.3 (Silent Install + DNS Fix Check)
+# Version: 1.4 (Pipe Safety Fix + Silent Install)
 # ==============================================================================
 
 # Exit on any error
@@ -29,13 +29,17 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # 1.1 Safety Check: Warn if running on Proxmox Host
+# We check for PVE specific files.
 if [ -f "/etc/pve/storage.cfg" ] || [ -f "/etc/pve/local/pve-ssl.key" ]; then
     echo -e "${RED}==============================================================${NC}"
     echo -e "${RED}⚠️  WARNING: PROXMOX HOST DETECTED ⚠️${NC}"
     echo -e "${RED}==============================================================${NC}"
     echo -e "${YELLOW}It looks like you are running this script directly on your Proxmox Node.${NC}"
-    echo -e "Press Ctrl+C to abort, or ENTER to proceed (NOT RECOMMENDED)."
-    read -p ""
+    echo -e "${YELLOW}This is NOT recommended. You should run this inside an LXC Container.${NC}"
+    echo -e ""
+    echo -e "Press Ctrl+C to abort, or ENTER to proceed (at your own risk)..."
+    # FIX: Force read from /dev/tty to handle 'curl | bash' pipe correctly
+    read -p "" < /dev/tty
 fi
 
 # 2. System Update & Dependencies
@@ -51,7 +55,7 @@ if [ -d "$INSTALL_DIR" ]; then
     git pull
 else
     echo -e "${GREEN}>>> Cloning llama.cpp repository...${NC}"
-    # Retry logic for git clone in case of minor network blips
+    # Retry logic + DNS fix attempt
     git clone https://github.com/ggerganov/llama.cpp "$INSTALL_DIR" || {
         echo -e "${RED}Git clone failed. Checking DNS...${NC}"
         echo "nameserver 8.8.8.8" > /etc/resolv.conf
