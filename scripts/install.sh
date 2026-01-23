@@ -3,7 +3,7 @@
 # ==============================================================================
 # AUTOMATED INSTALLER: Local AI Server on Proxmox LXC
 # Installs llama.cpp engine + Llama 3.2 3B Model + Custom UI + Systemd Service
-# Version: 1.2 (Custom UI + Safety Checks + IP Fix)
+# Version: 1.2.1 (Custom UI + Safety Checks + IP Fix)
 # ==============================================================================
 
 # Exit on any error
