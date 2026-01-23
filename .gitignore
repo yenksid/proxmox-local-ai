@@ -1,5 +1,28 @@
-# Prerequisites
-*.d
+# ==============================================================================
+# AI & LARGE MODELS (CRITICAL)
+# ==============================================================================
+# Prevent accidental commit of massive model files (Github limit is 100MB)
+*.gguf
+*.bin
+*.pt
+*.safetensors
+*.pth
+*.ckpt
+
+# Ignore local models directory
+models/
+
+# ==============================================================================
+# BUILD ARTIFACTS & DEPENDENCIES
+# ==============================================================================
+# We ignore the engine source because the install script clones it dynamically.
+# Committing this would create a nested repo mess.
+llama.cpp/
+
+# CMake build directories
+build/
+cmake-build-debug/
+cmake-build-release/
 
 # Compiled Object files
 *.slo
@@ -7,35 +30,78 @@
 *.o
 *.obj
 
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
+# Executables and Binaries
+*.exe
+*.out
+*.app
 *.so
 *.dylib
 *.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
 *.lai
 *.la
 *.a
 *.lib
 
-# Executables
-*.exe
-*.out
-*.app
+# ==============================================================================
+# LOGS & DATABASES
+# ==============================================================================
+# Runtime logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# debug information files
-*.dwo
+# Databases
+*.sqlite
+*.db
+
+# ==============================================================================
+# SYSTEM & OS FILES
+# ==============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ==============================================================================
+# IDE & EDITOR CONFIGS
+# ==============================================================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains (IntelliJ, PyCharm, CLion)
+.idea/
+*.iml
+
+# Vim / Nano / Emacs
+*.swp
+*.swo
+*~
+
+# ==============================================================================
+# SECURITY & ENVIRONMENT
+# ==============================================================================
+# Never commit environment variables containing keys/passwords
+.env
+.env.local
+.env.*.local
+
+# ==============================================================================
+# MISC / TEMP FILES
+# ==============================================================================
+tmp/
+temp/
+*.pid
+*.seed
+*.iso
