@@ -61,7 +61,7 @@ Create an LXC container in Proxmox with these specifications:
 > This is the recommended way for a fresh installation.
 
 ```bash
-curl -sL https://raw.githubusercontent.com/yenksid/proxmox-bitnet-server/main/scripts/install.sh | bash
+curl -sL https://raw.githubusercontent.com/yenksid/proxmox-local-ai/main/scripts/install.sh | bash
 ```
 
 ### 2. 🛠️ Manual Installation
