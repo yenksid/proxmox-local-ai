@@ -27,7 +27,7 @@ Create an LXC container in Proxmox with the following specs:
 If you have a fresh LXC container (Ubuntu/Debian), you can install everything with a single command:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/TU_USUARIO/proxmox-local-ai/main/scripts/install.sh | bash
+curl -sL https://raw.githubusercontent.com/yenksid/proxmox-local-ai/main/scripts/install.sh | bash
 ```
 
 ### 2. 🛠️ Manual Installation
