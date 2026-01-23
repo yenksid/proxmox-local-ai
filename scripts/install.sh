@@ -3,7 +3,7 @@
 # ==============================================================================
 # AUTOMATED INSTALLER: Local AI Server on Proxmox LXC
 # Installs llama.cpp engine + Llama 3.2 3B Model + Custom UI + Systemd Service
-# Version: 1.2.1 (Custom UI + Safety Checks + IP Fix)
+# Version: 1.3 (Silent Install + DNS Fix Check)
 # ==============================================================================
 
 # Exit on any error
@@ -14,8 +14,11 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+# --- CONFIGURATION ---
+USER_TITLE="User" # Generic default name. No prompts.
+# ---------------------
 
 echo -e "${BLUE}>>> Starting Installation of Local AI Server...${NC}"
 
@@ -31,21 +34,9 @@ if [ -f "/etc/pve/storage.cfg" ] || [ -f "/etc/pve/local/pve-ssl.key" ]; then
     echo -e "${RED}⚠️  WARNING: PROXMOX HOST DETECTED ⚠️${NC}"
     echo -e "${RED}==============================================================${NC}"
     echo -e "${YELLOW}It looks like you are running this script directly on your Proxmox Node.${NC}"
-    echo -e "${YELLOW}This is NOT recommended. You should run this inside an LXC Container${NC}"
-    echo -e "${YELLOW}to keep your hypervisor clean and secure.${NC}"
-    echo -e ""
-    echo -e "If you really want to install it on the host, press ENTER."
-    echo -e "Otherwise, press Ctrl+C to abort and create an LXC."
+    echo -e "Press Ctrl+C to abort, or ENTER to proceed (NOT RECOMMENDED)."
     read -p ""
 fi
-
-# 1.2 Personalization
-echo -e "${CYAN}--------------------------------------------------------------${NC}"
-echo -e "${CYAN} PERSONALIZATION ${NC}"
-echo -e "${CYAN}--------------------------------------------------------------${NC}"
-read -p "How should the AI address you? (Default: Architect): " USER_TITLE
-USER_TITLE=${USER_TITLE:-Architect} # Default to Architect if empty
-echo -e "${GREEN}>>> Understood. The system will address you as '${USER_TITLE}'.${NC}"
 
 # 2. System Update & Dependencies
 echo -e "${GREEN}>>> Updating system and installing dependencies...${NC}"
@@ -60,7 +51,12 @@ if [ -d "$INSTALL_DIR" ]; then
     git pull
 else
     echo -e "${GREEN}>>> Cloning llama.cpp repository...${NC}"
-    git clone https://github.com/ggerganov/llama.cpp "$INSTALL_DIR"
+    # Retry logic for git clone in case of minor network blips
+    git clone https://github.com/ggerganov/llama.cpp "$INSTALL_DIR" || {
+        echo -e "${RED}Git clone failed. Checking DNS...${NC}"
+        echo "nameserver 8.8.8.8" > /etc/resolv.conf
+        git clone https://github.com/ggerganov/llama.cpp "$INSTALL_DIR"
+    }
     cd "$INSTALL_DIR"
 fi
 
@@ -84,7 +80,7 @@ else
     wget "$MODEL_URL" -O "$MODEL_PATH"
 fi
 
-# 5. Generate UI (Injecting User Title)
+# 5. Generate UI (Injecting Generic User Title)
 PUBLIC_DIR="/root/public"
 mkdir -p "$PUBLIC_DIR"
 echo -e "${GREEN}>>> Generating Custom UI...${NC}"
@@ -95,7 +91,7 @@ cat <<EOF > "$PUBLIC_DIR/index.html"
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resilient AI Node</title>
+    <title>Local AI Node</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root { --bg-color: #0d1117; --chat-bg: #161b22; --user-msg: #238636; --ai-msg: #1f6feb; --text-color: #c9d1d9; --font-mono: 'Courier New', Courier, monospace; }
@@ -116,9 +112,9 @@ cat <<EOF > "$PUBLIC_DIR/index.html"
     </style>
 </head>
 <body>
-<header>⚡ RESILIENT NODE | Llama 3.2 3B</header>
+<header>⚡ LOCAL AI NODE | Llama 3.2 3B</header>
 <div id="chat-container">
-    <div class="message ai">System ready. Running in LXC. 4GB RAM Optimization active.<br>How can I assist you, ${USER_TITLE}?</div>
+    <div class="message ai">System ready. Running in LXC. Efficiency protocols active.<br>How can I assist you, ${USER_TITLE}?</div>
 </div>
 <div id="input-area">
     <input type="text" id="user-input" placeholder="Type a command or query..." autocomplete="off">
@@ -237,4 +233,3 @@ echo -e "${GREEN} INSTALLATION COMPLETE! ${NC}"
 echo -e "${GREEN}======================================================${NC}"
 echo -e "Your AI Server is running at: ${BLUE}http://$IP_ADDR:8080${NC}"
 echo -e "API Endpoint: ${BLUE}http://$IP_ADDR:8080/v1${NC}"
-echo -e "System will address you as: ${CYAN}$USER_TITLE${NC}"
