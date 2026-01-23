@@ -2,38 +2,69 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Local AI Node</title>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BitNet AI Node</title>
+
     <style>
         :root {
             --bg-color: #0d1117;
             --chat-bg: #161b22;
+            --input-bg: #21262d;
             --user-msg: #238636;
             --ai-msg: #1f6feb;
             --text-color: #c9d1d9;
-            --font-mono: 'Courier New', Courier, monospace;
+            --border-color: #30363d;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }
 
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            font-family: system-ui, -apple-system, sans-serif;
             margin: 0;
             display: flex;
             flex-direction: column;
             height: 100vh;
         }
 
+        #drop-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(31, 111, 235, 0.2);
+            border: 4px dashed #58a6ff;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #58a6ff;
+            backdrop-filter: blur(2px);
+            pointer-events: none;
+        }
+
         header {
             background-color: var(--chat-bg);
             padding: 1rem;
-            border-bottom: 1px solid #30363d;
+            border-bottom: 1px solid var(--border-color);
             text-align: center;
             font-family: var(--font-mono);
-            font-weight: bold;
+            font-weight: 700;
             color: #58a6ff;
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .header-sub {
+            font-size: 0.8em;
+            color: #8b949e;
+            font-weight: 600;
         }
 
         #chat-container {
@@ -46,150 +77,551 @@
         }
 
         .message {
-            max-width: 80%;
-            padding: 10px 15px;
+            max-width: 85%;
+            padding: 12px 16px;
             border-radius: 8px;
-            line-height: 1.5;
+            line-height: 1.6;
             word-wrap: break-word;
+            position: relative;
+            white-space: normal;
         }
 
         .user {
             align-self: flex-end;
             background-color: var(--user-msg);
-            color: white;
+            color: #fff;
         }
 
         .ai {
             align-self: flex-start;
             background-color: var(--chat-bg);
-            border: 1px solid #30363d;
-        }
-
-        .json-badge {
-            font-size: 0.7em;
-            background: #d29922;
-            color: black;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: bold;
-            display: inline-block;
-            margin-bottom: 5px;
+            border: 1px solid var(--border-color);
         }
 
         #input-area {
             background-color: var(--chat-bg);
             padding: 20px;
-            border-top: 1px solid #30363d;
+            border-top: 1px solid var(--border-color);
             display: flex;
             gap: 10px;
         }
 
         input[type="text"] {
             flex: 1;
-            background-color: #0d1117;
-            border: 1px solid #30363d;
-            color: white;
-            padding: 12px;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 14px;
             border-radius: 6px;
             font-family: var(--font-mono);
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: #58a6ff;
         }
 
         button {
-            background-color: #238636;
-            color: white;
             border: none;
             padding: 0 20px;
             border-radius: 6px;
             cursor: pointer;
-            font-weight: bold;
+            font-weight: 700;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: opacity 0.2s;
+            user-select: none;
         }
 
         button:hover {
-            background-color: #2ea043;
+            opacity: 0.9;
         }
 
         button:disabled {
-            background-color: #30363d;
-            cursor: wait;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        #send-btn {
+            background-color: #238636;
+            color: #fff;
+        }
+
+        #stop-btn {
+            background-color: #da3633;
+            color: #fff;
+            display: none;
         }
 
         pre {
             background: #000;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 15px;
+            border-radius: 6px;
             overflow-x: auto;
+            position: relative;
+            border: 1px solid #30363d;
+            margin: 10px 0;
         }
 
         code {
             font-family: var(--font-mono);
+            font-size: 0.9em;
+            color: #e2e8f0;
+        }
+
+        .inline-code {
+            background: #30363d;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 0.95em;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-size: 1.2em;
+            cursor: pointer;
+            z-index: 10;
+            line-height: 1;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .code-lang {
+            position: absolute;
+            top: 6px;
+            left: 8px;
+            font-size: 0.75em;
+            color: #8b949e;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: var(--font-mono);
+        }
+
+        .json-badge {
+            font-size: 0.7em;
+            background: #d29922;
+            color: #000;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 800;
+            display: inline-block;
+            margin-bottom: 6px;
         }
     </style>
 </head>
 
 <body>
-    <header>⚡ LOCAL AI NODE | Llama 3.2 3B</header>
+    <div id="drop-overlay">📂 DROP FILE TO ANALYZE</div>
+
+    <header>
+        <span>⚡ BITNET NODE</span>
+        <span class="header-sub">v1.7 (Offline)</span>
+    </header>
+
     <div id="chat-container">
-        <div class="message ai">System ready. Running in LXC. Efficiency protocols active.<br>How can I assist you?
+        <div class="message ai">
+            System ready (Standalone Mode).<br />
+            <strong>Feature:</strong> Drag & drop text files here.<br />
         </div>
     </div>
+
     <div id="input-area">
-        <input type="text" id="user-input" placeholder="Type a command or query..." autocomplete="off">
-        <button id="send-btn">SEND</button>
+        <input type="text" id="user-input" placeholder="Type a message or drag a file..." autocomplete="off" />
+        <button id="send-btn" type="button">🚀 SEND</button>
+        <button id="stop-btn" type="button">🛑 STOP</button>
     </div>
+
     <script>
-        const chatContainer = document.getElementById('chat-container');
-        const inputField = document.getElementById('user-input');
-        const sendBtn = document.getElementById('send-btn');
+        (function () {
+            "use strict";
 
-        function parseAIResponse(text) {
-            text = text.trim();
-            if (text.startsWith('{') && text.endsWith('}')) {
-                try {
-                    const data = JSON.parse(text);
-                    if (data.parameters) {
-                        let cleanContent = data.parameters.content || JSON.stringify(data.parameters, null, 2);
-                        return `<span class="json-badge">TOOL OUTPUT</span><br>` + marked.parse(cleanContent);
+            // --- INITIALIZATION ---
+            console.log(">>> BitNet UI v1.7 Initializing...");
+
+            // DOM Elements
+            var chatContainer = document.getElementById("chat-container");
+            var inputField = document.getElementById("user-input");
+            var sendBtn = document.getElementById("send-btn");
+            var stopBtn = document.getElementById("stop-btn");
+            var dropOverlay = document.getElementById("drop-overlay");
+
+            // State
+            var abortController = null;
+            var msgCounter = 0;
+            var dragDepth = 0;
+
+            // --- UTIL: Escape HTML (for safe text->HTML) ---
+            function escapeHTML(str) {
+                return String(str)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#39;");
+            }
+
+            function scrollToBottom() {
+                // Keep it simple and reliable
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+
+            // --- UI: Add message ---
+            // addMessage(content, who, isTemp, isHTML) -> elementId
+            function addMessage(content, who, isTemp, isHTML) {
+                msgCounter += 1;
+                var id = "msg_" + msgCounter;
+
+                var el = document.createElement("div");
+                el.className = "message " + (who === "user" ? "user" : "ai");
+                el.id = id;
+
+                if (isHTML) {
+                    el.innerHTML = content;
+                } else {
+                    el.textContent = content;
+                }
+
+                if (isTemp) el.setAttribute("data-temp", "1");
+
+                chatContainer.appendChild(el);
+                scrollToBottom();
+                return id;
+            }
+
+            // --- 1) ROBUST COPY TO CLIPBOARD (HTTP / CSP-safe) ---
+            function copyToClipboard(text, btnElement) {
+                console.log("--> Copy Action Triggered");
+
+                function setBtn(icon) {
+                    if (!btnElement) return;
+                    btnElement.textContent = icon;
+                    window.setTimeout(function () {
+                        btnElement.textContent = "📋";
+                    }, 2000);
+                }
+
+                function fail(err) {
+                    console.error("Copy failed:", err);
+                    setBtn("❌");
+                    alert("Clipboard Access Blocked.\nPlease select and copy manually.");
+                }
+
+                // Strategy A: Modern API (requires HTTPS or localhost)
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text)
+                        .then(function () {
+                            setBtn("✅");
+                        })
+                        .catch(function () {
+                            // fall back to legacy
+                            legacyCopy(text);
+                        });
+                    return;
+                }
+
+                // Strategy B: Legacy textarea hack (works on HTTP)
+                legacyCopy(text);
+
+                function legacyCopy(t) {
+                    try {
+                        var ta = document.createElement("textarea");
+                        ta.value = t;
+
+                        // Invisible but selectable
+                        ta.style.position = "fixed";
+                        ta.style.left = "0";
+                        ta.style.top = "0";
+                        ta.style.opacity = "0.01";
+                        ta.style.width = "1px";
+                        ta.style.height = "1px";
+
+                        document.body.appendChild(ta);
+                        ta.focus();
+                        ta.select();
+
+                        var ok = document.execCommand("copy");
+                        document.body.removeChild(ta);
+
+                        if (ok) setBtn("✅");
+                        else throw new Error("execCommand returned false");
+                    } catch (e) {
+                        fail(e);
                     }
-                    return `<span class="json-badge">JSON DATA</span><pre>${JSON.stringify(data, null, 2)}</pre>`;
-                } catch (e) { return marked.parse(text); }
+                }
             }
-            return marked.parse(text);
-        }
 
-        async function sendMessage() {
-            const text = inputField.value.trim();
-            if (!text) return;
-            addMessage(text, 'user');
-            inputField.value = ''; inputField.disabled = true; sendBtn.disabled = true;
-            const loadingId = addMessage("Thinking...", 'ai', true);
-            try {
-                const response = await fetch('/completion', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        prompt: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful AI assistant running on a local Proxmox server. Keep answers concise.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n${text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n`,
-                        n_predict: 512, temperature: 0.7, stop: ["<|eot_id|>"]
-                    })
+            // --- 2) SIMPLE MARKDOWN PARSER (Zero dependencies, code-block safe) ---
+            // Supports:
+            // - Fenced blocks: ```lang?\n...\n```
+            // - Inline code: `code`
+            // - Bold: **text**
+            // - Newlines -> <br>
+            function simpleMarkdown(rawText) {
+                var text = String(rawText || "").replace(/\r\n?/g, "\n");
+
+                // Extract fenced code blocks by scanning (more robust than regex)
+                var codeBlocks = [];
+                var out = "";
+                var i = 0;
+
+                while (i < text.length) {
+                    var start = text.indexOf("```", i);
+                    if (start === -1) {
+                        out += text.slice(i);
+                        break;
+                    }
+
+                    // Append text before block
+                    out += text.slice(i, start);
+
+                    // Find end fence
+                    var fenceStart = start + 3;
+                    var end = text.indexOf("```", fenceStart);
+                    if (end === -1) {
+                        // No closing fence -> treat as plain text
+                        out += text.slice(start);
+                        break;
+                    }
+
+                    // Parse optional language (up to first newline)
+                    var firstNl = text.indexOf("\n", fenceStart);
+                    var lang = "";
+                    var codeStart = fenceStart;
+
+                    if (firstNl !== -1 && firstNl < end) {
+                        lang = text.slice(fenceStart, firstNl).trim();
+                        codeStart = firstNl + 1;
+                    }
+
+                    var code = text.slice(codeStart, end);
+
+                    var token = "\u0000CODEBLOCK_" + codeBlocks.length + "\u0000";
+                    codeBlocks.push({ lang: lang, code: code });
+                    out += token;
+
+                    i = end + 3;
+                }
+
+                // Now process the NON-code text safely
+                var html = escapeHTML(out);
+
+                // Inline code (do after escapeHTML, so contents stay safe)
+                html = html.replace(/`([^`\n]+)`/g, function (_, c) {
+                    return '<code class="inline-code">' + c + "</code>";
                 });
-                const data = await response.json();
-                document.getElementById(loadingId).remove();
-                const aiText = parseAIResponse(data.content);
-                addMessage(aiText, 'ai', false, true);
-            } catch (error) {
-                document.getElementById(loadingId).remove();
-                addMessage("Error connecting to Local AI: " + error.message, 'ai');
+
+                // Bold
+                html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
+                // Newlines
+                html = html.replace(/\n/g, "<br>");
+
+                // Restore code blocks (escape code content separately, preserve newlines)
+                html = html.replace(/\u0000CODEBLOCK_(\d+)\u0000/g, function (_, idx) {
+                    var block = codeBlocks[Number(idx)];
+                    if (!block) return "";
+
+                    var safeCode = escapeHTML(block.code);
+                    var langBadge = block.lang ? '<span class="code-lang">' + escapeHTML(block.lang) + "</span>" : "";
+
+                    // NOTE: No inline onclick (CSP-safe). We use event delegation.
+                    return (
+                        '<pre>' +
+                        langBadge +
+                        '<button class="copy-btn" type="button" aria-label="Copy code">📋</button>' +
+                        "<code>" + safeCode + "</code>" +
+                        "</pre>"
+                    );
+                });
+
+                return html;
             }
-            inputField.disabled = false; sendBtn.disabled = false; inputField.focus();
-        }
-        function addMessage(text, sender, isTemp = false, isHTML = false) {
-            const div = document.createElement('div'); div.className = `message ${sender}`;
-            if (isTemp) div.id = 'msg-' + Date.now();
-            if (isHTML) div.innerHTML = text; else div.textContent = text;
-            chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight;
-            return div.id;
-        }
-        sendBtn.addEventListener('click', sendMessage);
-        inputField.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+            function parseAIResponse(text) {
+                var t = String(text || "").trim();
+
+                // JSON Tool Output Detection (best effort)
+                if (t.length >= 2 && t.charAt(0) === "{" && t.charAt(t.length - 1) === "}") {
+                    try {
+                        var data = JSON.parse(t);
+                        if (data && typeof data === "object") {
+                            if (data.parameters) {
+                                var content = (data.parameters && data.parameters.content) ? String(data.parameters.content) : JSON.stringify(data.parameters, null, 2);
+                                return '<span class="json-badge">TOOL OUTPUT</span><br>' + simpleMarkdown(content);
+                            }
+                            // Generic JSON
+                            var pretty = JSON.stringify(data, null, 2);
+                            return (
+                                '<span class="json-badge">JSON DATA</span>' +
+                                '<pre><button class="copy-btn" type="button" aria-label="Copy code">📋</button><code>' +
+                                escapeHTML(pretty) +
+                                "</code></pre>"
+                            );
+                        }
+                    } catch (e) {
+                        // Not JSON, continue as plain text
+                    }
+                }
+
+                return simpleMarkdown(t);
+            }
+
+            // --- 3) CORE MESSAGING LOGIC ---
+            async function sendMessage() {
+                var text = inputField.value.trim();
+                if (!text) return;
+
+                // UI updates
+                addMessage(text, "user", false, false);
+                inputField.value = "";
+                inputField.disabled = true;
+                sendBtn.style.display = "none";
+                stopBtn.style.display = "flex";
+
+                var loadingId = addMessage("Thinking...", "ai", true, false);
+                abortController = new AbortController();
+
+                try {
+                    console.log("Sending request to /completion...");
+                    var response = await fetch("/completion", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        signal: abortController.signal,
+                        body: JSON.stringify({
+                            prompt:
+                                "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful AI assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n" +
+                                text +
+                                "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+                            n_predict: 2048,
+                            temperature: 0.7,
+                            stop: ["<|eot_id|>"]
+                        })
+                    });
+
+                    if (!response.ok) throw new Error("HTTP Error: " + response.status);
+
+                    var data = await response.json();
+
+                    var loadingEl = document.getElementById(loadingId);
+                    if (loadingEl) loadingEl.remove();
+
+                    var aiContent = data && typeof data.content === "string" ? data.content : JSON.stringify(data);
+                    addMessage(parseAIResponse(aiContent), "ai", false, true);
+                } catch (error) {
+                    var loadingEl2 = document.getElementById(loadingId);
+                    if (loadingEl2) loadingEl2.remove();
+
+                    if (error && error.name === "AbortError") {
+                        addMessage("🛑 Generation stopped by user.", "ai", false, false);
+                    } else {
+                        console.error(error);
+                        addMessage("Error: " + (error && error.message ? error.message : String(error)), "ai", false, false);
+                    }
+                } finally {
+                    inputField.disabled = false;
+                    sendBtn.style.display = "flex";
+                    stopBtn.style.display = "none";
+                    inputField.focus();
+                    abortController = null;
+                }
+            }
+
+            // --- 4) DRAG & DROP HANDLERS ---
+            function handleFileUpload(file) {
+                console.log("File dropped:", file && file.name);
+                var maxBytes = 2 * 1024 * 1024; // 2MB
+                if (!file) return;
+                if (file.size > maxBytes) {
+                    alert("File too large (>2MB).");
+                    return;
+                }
+
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var content = (e && e.target) ? e.target.result : "";
+                    inputField.value =
+                        "\n--- FILE START: " + file.name + " ---\n" +
+                        String(content || "") +
+                        "\n--- FILE END ---\n\nAnalyze this file: ";
+                    inputField.focus();
+                };
+                reader.readAsText(file);
+            }
+
+            window.addEventListener("dragenter", function (e) {
+                e.preventDefault();
+                dragDepth += 1;
+                dropOverlay.style.display = "flex";
+            });
+
+            window.addEventListener("dragover", function (e) {
+                e.preventDefault();
+            });
+
+            window.addEventListener("dragleave", function (e) {
+                // Only hide when fully left window
+                dragDepth = Math.max(0, dragDepth - 1);
+                if (dragDepth === 0) dropOverlay.style.display = "none";
+            });
+
+            window.addEventListener("drop", function (e) {
+                e.preventDefault();
+                dragDepth = 0;
+                dropOverlay.style.display = "none";
+
+                var dt = e.dataTransfer;
+                if (dt && dt.files && dt.files.length > 0) {
+                    handleFileUpload(dt.files[0]);
+                }
+            });
+
+            // --- 5) EVENT LISTENERS ---
+            stopBtn.addEventListener("click", function () {
+                if (abortController) abortController.abort();
+            });
+
+            sendBtn.addEventListener("click", function () {
+                console.log("Send button clicked");
+                sendMessage();
+            });
+
+            inputField.addEventListener("keydown", function (e) {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    console.log("Enter key pressed");
+                    sendMessage();
+                }
+            });
+
+            // CSP-safe Copy button handler via event delegation (no inline onclick)
+            chatContainer.addEventListener("click", function (e) {
+                var target = e.target;
+                if (!target || !target.classList) return;
+
+                if (target.classList.contains("copy-btn")) {
+                    var pre = target.closest("pre");
+                    if (!pre) return;
+                    var codeEl = pre.querySelector("code");
+                    var codeText = codeEl ? codeEl.textContent : "";
+                    copyToClipboard(codeText, target);
+                }
+            });
+
+            console.log(">>> UI Ready. Event listeners attached.");
+        })();
     </script>
 </body>
 
