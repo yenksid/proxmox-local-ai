@@ -81,7 +81,7 @@ cmake --build build --config Release -j$(nproc) --target llama-server
 
 # Setup Web UI
 mkdir -p /root/public
-wget https://raw.githubusercontent.com/yenksid/proxmox-bitnet-server/main/public/index.html -O /root/public/index.html
+wget https://raw.githubusercontent.com/yenksid/proxmox-local-ai/main/public/index.html -O /root/public/index.html
 ```
 
 ---
