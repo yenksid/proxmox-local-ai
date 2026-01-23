@@ -81,7 +81,7 @@ fi
 
 # 5. Fetch Web UI from Repository
 PUBLIC_DIR="/root/public"
-UI_URL="https://raw.githubusercontent.com/yenksid/proxmox-bitnet-server/main/public/index.html"
+UI_URL="https://raw.githubusercontent.com/yenksid/proxmox-local-ai/main/public/index.html"
 
 mkdir -p "$PUBLIC_DIR"
 echo -e "${GREEN}>>> Fetching Web UI from repository...${NC}"
