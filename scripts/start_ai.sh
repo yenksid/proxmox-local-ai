@@ -8,3 +8,4 @@
     --temp 0.7 \
     -t 4 \
     --path /root/public
+    
