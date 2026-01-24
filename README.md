@@ -9,11 +9,24 @@ A complete guide and configuration set to run efficient, local AI models (like *
 ---
 
 ## ✨ Features
+
 - ⚡ **High Performance**: Optimized for CPU-only inference using `llama.cpp`.
 - 🌐 **Web UI Included**: Built-in minimalist chat interface.
-- � **OpenAI Compatible**: Fully compatible with OpenAI API clients.
+- 🤖 **OpenAI Compatible**: Fully compatible with OpenAI API clients.
 - 📦 **LXC Optimized**: Designed specifically for Proxmox containers.
 - 🔋 **Systemd Integration**: Automatic startup and crash recovery.
+
+## 🌟 Features (v1.11 Update)
+
+- **Rich File Support:** Drag & drop analysis for **PDF, DOCX, and XLSX** files (Client-side processing, no binary uploads).
+
+- **Smart Context Management:**
+  - **Auto-Sync:** Detects server context limit on boot.
+  - **Manual Slider:** Adjust context window from 1k to 500k chars with real-time RAM usage estimation.
+- **Robustness:**
+  - **Offline-Capable:** Gracefully degrades to text-only mode if CDNs are blocked or unreachable.
+  - **Smart Error Handling:** Friendly warnings for context overflows (HTTP 400).
+- **UX Enhancements:** Dark mode, code syntax highlighting, and copy-to-clipboard (HTTP compatible).
 
 ---
 
