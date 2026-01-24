@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BitNet AI Node</title>
 
+    <!-- Rich File Support (Issue #4) - CDN injected libraries -->
+    <!-- Graceful degradation is implemented in the main script if these fail to load (offline/CSP/CDN blocked). -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js" defer></script>
+    <script src="https://unpkg.com/mammoth@1.11.0/mammoth.browser.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+
     <style>
         :root {
             --bg-color: #0d1117;
@@ -15,7 +21,20 @@
             --ai-msg: #1f6feb;
             --text-color: #c9d1d9;
             --border-color: #30363d;
+            --muted: #8b949e;
             --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        /* Optional Light theme (does not break dark mode default) */
+        :root[data-theme="light"] {
+            --bg-color: #f6f8fa;
+            --chat-bg: #ffffff;
+            --input-bg: #eaeef2;
+            --user-msg: #1a7f37;
+            --ai-msg: #0969da;
+            --text-color: #1f2328;
+            --border-color: #d0d7de;
+            --muted: #57606a;
         }
 
         body {
@@ -45,26 +64,97 @@
             color: #58a6ff;
             backdrop-filter: blur(2px);
             pointer-events: none;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
         header {
             background-color: var(--chat-bg);
-            padding: 1rem;
+            padding: 12px 16px 10px 16px;
             border-bottom: 1px solid var(--border-color);
-            text-align: center;
             font-family: var(--font-mono);
             font-weight: 700;
             color: #58a6ff;
+            position: relative;
+        }
+
+        .header-top {
             display: flex;
             align-items: baseline;
             justify-content: center;
             gap: 10px;
+            text-align: center;
         }
 
         .header-sub {
             font-size: 0.8em;
-            color: #8b949e;
+            color: var(--muted);
             font-weight: 600;
+        }
+
+        /* Theme toggle (kept minimal; does not break existing behavior) */
+        #theme-toggle {
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            opacity: 0.9;
+        }
+
+        #theme-toggle:hover {
+            opacity: 1;
+        }
+
+        /* Context slider row */
+        .header-controls {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .control-chip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.02);
+            max-width: min(980px, calc(100% - 20px));
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .control-title {
+            color: var(--text-color);
+            font-weight: 800;
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+
+        #context-slider {
+            flex: 1;
+            min-width: 180px;
+            accent-color: #58a6ff;
+        }
+
+        #context-label {
+            color: var(--muted);
+            font-size: 0.8em;
+            font-weight: 700;
+            white-space: nowrap;
+            font-family: var(--font-mono);
         }
 
         #chat-container {
@@ -98,19 +188,93 @@
             border: 1px solid var(--border-color);
         }
 
-        #input-area {
+        /* v1.11: Error bubble polish */
+        .message.error {
+            border: 1px solid #da3633;
+            background: rgba(218, 54, 51, 0.10);
+        }
+
+        :root[data-theme="light"] .message.error {
+            border-color: #cf222e;
+            background: rgba(207, 34, 46, 0.10);
+        }
+
+        .user-meta {
+            margin-top: 6px;
+            font-size: 0.8em;
+            opacity: 0.85;
+            font-family: var(--font-mono);
+        }
+
+        /* Composer (attachment bar + input area) */
+        #composer {
             background-color: var(--chat-bg);
-            padding: 20px;
             border-top: 1px solid var(--border-color);
+        }
+
+        #attachment-bar {
+            display: none;
+            padding: 10px 20px 0 20px;
+            box-sizing: border-box;
+        }
+
+        .attachment-chip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 999px;
+            padding: 8px 10px;
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        .attachment-text {
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-color);
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            font-weight: 700;
+        }
+
+        .attachment-clear {
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-color);
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: 900;
+            line-height: 1;
+            padding: 0;
+            opacity: 0.9;
+        }
+
+        .attachment-clear:hover {
+            opacity: 1;
+        }
+
+        #input-area {
+            padding: 14px 20px 18px 20px;
             display: flex;
             gap: 10px;
+            box-sizing: border-box;
         }
 
         input[type="text"] {
             flex: 1;
             background-color: var(--bg-color);
             border: 1px solid var(--border-color);
-            color: #fff;
+            color: var(--text-color);
             padding: 14px;
             border-radius: 6px;
             font-family: var(--font-mono);
@@ -163,6 +327,11 @@
             position: relative;
             border: 1px solid #30363d;
             margin: 10px 0;
+        }
+
+        :root[data-theme="light"] pre {
+            background: #0b0f14;
+            border: 1px solid #2b3137;
         }
 
         code {
@@ -220,407 +389,996 @@
             display: inline-block;
             margin-bottom: 6px;
         }
+
+        /* Minimal toast */
+        #toast-host {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            z-index: 1000;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+            max-width: min(92vw, 720px);
+        }
+
+        .toast {
+            pointer-events: none;
+            background: rgba(22, 27, 34, 0.95);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-family: var(--font-mono);
+            font-weight: 800;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            width: max-content;
+            max-width: 100%;
+            text-align: center;
+        }
+
+        :root[data-theme="light"] .toast {
+            background: rgba(255, 255, 255, 0.96);
+        }
     </style>
 </head>
 
 <body>
     <div id="drop-overlay">📂 DROP FILE TO ANALYZE</div>
+    <div id="toast-host" aria-live="polite" aria-atomic="true"></div>
 
     <header>
-        <span>⚡ BITNET NODE</span>
-        <span class="header-sub">v1.7 (Offline)</span>
+        <div class="header-top">
+            <span>⚡ BITNET NODE</span>
+            <span class="header-sub">v1.11 (UX)</span>
+        </div>
+
+        <div class="header-controls">
+            <div class="control-chip" aria-label="Context settings">
+                <span class="control-title">Context</span>
+                <input id="context-slider" type="range" min="1000" max="500000" step="1000" value="20000" />
+                <span id="context-label">Limit: 20,000 chars • ~5,000 tokens • ~0.31 GB KV</span>
+            </div>
+        </div>
+
+        <button id="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">🌓</button>
     </header>
 
     <div id="chat-container">
         <div class="message ai">
             System ready (Standalone Mode).<br />
-            <strong>Feature:</strong> Drag & drop text files here.<br />
+            <strong>Feature:</strong> Drag &amp; drop a file (Single file support).<br />
         </div>
     </div>
 
-    <div id="input-area">
-        <input type="text" id="user-input" placeholder="Type a message or drag a file..." autocomplete="off" />
-        <button id="send-btn" type="button">🚀 SEND</button>
-        <button id="stop-btn" type="button">🛑 STOP</button>
+    <div id="composer">
+        <div id="attachment-bar" aria-live="polite">
+            <div class="attachment-chip">
+                <span class="attachment-text" id="attachment-text">📎 file.ext (0 KB) — Ready</span>
+                <button class="attachment-clear" id="attachment-clear" type="button" aria-label="Remove attachment"
+                    title="Remove attachment">✕</button>
+            </div>
+        </div>
+
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Type a message or drag a file..." autocomplete="off" />
+            <button id="send-btn" type="button">🚀 SEND</button>
+            <button id="stop-btn" type="button">🛑 STOP</button>
+        </div>
     </div>
 
     <script>
         (function () {
             "use strict";
 
-            // --- INITIALIZATION ---
-            console.log(">>> BitNet UI v1.7 Initializing...");
+            function boot() {
+                // --- INITIALIZATION ---
+                console.log(">>> BitNet UI Initializing...");
 
-            // DOM Elements
-            var chatContainer = document.getElementById("chat-container");
-            var inputField = document.getElementById("user-input");
-            var sendBtn = document.getElementById("send-btn");
-            var stopBtn = document.getElementById("stop-btn");
-            var dropOverlay = document.getElementById("drop-overlay");
+                // DOM Elements
+                var chatContainer = document.getElementById("chat-container");
+                var inputField = document.getElementById("user-input");
+                var sendBtn = document.getElementById("send-btn");
+                var stopBtn = document.getElementById("stop-btn");
+                var dropOverlay = document.getElementById("drop-overlay");
+                var themeToggleBtn = document.getElementById("theme-toggle");
+                var toastHost = document.getElementById("toast-host");
 
-            // State
-            var abortController = null;
-            var msgCounter = 0;
-            var dragDepth = 0;
+                var contextSlider = document.getElementById("context-slider");
+                var contextLabel = document.getElementById("context-label");
 
-            // --- UTIL: Escape HTML (for safe text->HTML) ---
-            function escapeHTML(str) {
-                return String(str)
-                    .replace(/&/g, "&amp;")
-                    .replace(/</g, "&lt;")
-                    .replace(/>/g, "&gt;")
-                    .replace(/"/g, "&quot;")
-                    .replace(/'/g, "&#39;");
-            }
+                var attachmentBar = document.getElementById("attachment-bar");
+                var attachmentTextEl = document.getElementById("attachment-text");
+                var attachmentClearBtn = document.getElementById("attachment-clear");
 
-            function scrollToBottom() {
-                // Keep it simple and reliable
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-            }
+                // State
+                var abortController = null;
+                var msgCounter = 0;
+                var dragDepth = 0;
 
-            // --- UI: Add message ---
-            // addMessage(content, who, isTemp, isHTML) -> elementId
-            function addMessage(content, who, isTemp, isHTML) {
-                msgCounter += 1;
-                var id = "msg_" + msgCounter;
+                // Feature 1: Hidden Context Injection (attachment state)
+                var attachedFileContent = "";   // extracted text only (already clamped)
+                var attachedFileName = "";
+                var attachedFileSize = 0;
+                var attachedWasTruncated = false;
 
-                var el = document.createElement("div");
-                el.className = "message " + (who === "user" ? "user" : "ai");
-                el.id = id;
+                // Feature 2: Dynamic Context Slider -> dynamic extraction clamp
+                var MAX_EXTRACT_CHARS = 20000; // default (updated by slider / server sync)
+                var MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB
+                var MAX_PDF_PAGES = 60; // safety cap
 
-                if (isHTML) {
-                    el.innerHTML = content;
-                } else {
-                    el.textContent = content;
-                }
+                // Rich file parsing availability (graceful degradation)
+                var rich = detectRichParsingSupport();
+                updateDropOverlayText(rich);
 
-                if (isTemp) el.setAttribute("data-temp", "1");
-
-                chatContainer.appendChild(el);
-                scrollToBottom();
-                return id;
-            }
-
-            // --- 1) ROBUST COPY TO CLIPBOARD (HTTP / CSP-safe) ---
-            function copyToClipboard(text, btnElement) {
-                console.log("--> Copy Action Triggered");
-
-                function setBtn(icon) {
-                    if (!btnElement) return;
-                    btnElement.textContent = icon;
-                    window.setTimeout(function () {
-                        btnElement.textContent = "📋";
-                    }, 2000);
-                }
-
-                function fail(err) {
-                    console.error("Copy failed:", err);
-                    setBtn("❌");
-                    alert("Clipboard Access Blocked.\nPlease select and copy manually.");
-                }
-
-                // Strategy A: Modern API (requires HTTPS or localhost)
-                if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(text)
-                        .then(function () {
-                            setBtn("✅");
-                        })
-                        .catch(function () {
-                            // fall back to legacy
-                            legacyCopy(text);
-                        });
-                    return;
-                }
-
-                // Strategy B: Legacy textarea hack (works on HTTP)
-                legacyCopy(text);
-
-                function legacyCopy(t) {
+                // --- TOAST ---
+                function toast(message, ms) {
                     try {
-                        var ta = document.createElement("textarea");
-                        ta.value = t;
+                        var el = document.createElement("div");
+                        el.className = "toast";
+                        el.textContent = String(message || "");
+                        toastHost.appendChild(el);
 
-                        // Invisible but selectable
-                        ta.style.position = "fixed";
-                        ta.style.left = "0";
-                        ta.style.top = "0";
-                        ta.style.opacity = "0.01";
-                        ta.style.width = "1px";
-                        ta.style.height = "1px";
-
-                        document.body.appendChild(ta);
-                        ta.focus();
-                        ta.select();
-
-                        var ok = document.execCommand("copy");
-                        document.body.removeChild(ta);
-
-                        if (ok) setBtn("✅");
-                        else throw new Error("execCommand returned false");
+                        window.setTimeout(function () {
+                            if (el && el.parentNode) el.parentNode.removeChild(el);
+                        }, typeof ms === "number" ? ms : 2600);
                     } catch (e) {
-                        fail(e);
+                        console.log("[Toast]", message);
                     }
                 }
-            }
 
-            // --- 2) SIMPLE MARKDOWN PARSER (Zero dependencies, code-block safe) ---
-            // Supports:
-            // - Fenced blocks: ```lang?\n...\n```
-            // - Inline code: `code`
-            // - Bold: **text**
-            // - Newlines -> <br>
-            function simpleMarkdown(rawText) {
-                var text = String(rawText || "").replace(/\r\n?/g, "\n");
-
-                // Extract fenced code blocks by scanning (more robust than regex)
-                var codeBlocks = [];
-                var out = "";
-                var i = 0;
-
-                while (i < text.length) {
-                    var start = text.indexOf("```", i);
-                    if (start === -1) {
-                        out += text.slice(i);
-                        break;
-                    }
-
-                    // Append text before block
-                    out += text.slice(i, start);
-
-                    // Find end fence
-                    var fenceStart = start + 3;
-                    var end = text.indexOf("```", fenceStart);
-                    if (end === -1) {
-                        // No closing fence -> treat as plain text
-                        out += text.slice(start);
-                        break;
-                    }
-
-                    // Parse optional language (up to first newline)
-                    var firstNl = text.indexOf("\n", fenceStart);
-                    var lang = "";
-                    var codeStart = fenceStart;
-
-                    if (firstNl !== -1 && firstNl < end) {
-                        lang = text.slice(fenceStart, firstNl).trim();
-                        codeStart = firstNl + 1;
-                    }
-
-                    var code = text.slice(codeStart, end);
-
-                    var token = "\u0000CODEBLOCK_" + codeBlocks.length + "\u0000";
-                    codeBlocks.push({ lang: lang, code: code });
-                    out += token;
-
-                    i = end + 3;
-                }
-
-                // Now process the NON-code text safely
-                var html = escapeHTML(out);
-
-                // Inline code (do after escapeHTML, so contents stay safe)
-                html = html.replace(/`([^`\n]+)`/g, function (_, c) {
-                    return '<code class="inline-code">' + c + "</code>";
-                });
-
-                // Bold
-                html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-
-                // Newlines
-                html = html.replace(/\n/g, "<br>");
-
-                // Restore code blocks (escape code content separately, preserve newlines)
-                html = html.replace(/\u0000CODEBLOCK_(\d+)\u0000/g, function (_, idx) {
-                    var block = codeBlocks[Number(idx)];
-                    if (!block) return "";
-
-                    var safeCode = escapeHTML(block.code);
-                    var langBadge = block.lang ? '<span class="code-lang">' + escapeHTML(block.lang) + "</span>" : "";
-
-                    // NOTE: No inline onclick (CSP-safe). We use event delegation.
-                    return (
-                        '<pre>' +
-                        langBadge +
-                        '<button class="copy-btn" type="button" aria-label="Copy code">📋</button>' +
-                        "<code>" + safeCode + "</code>" +
-                        "</pre>"
-                    );
-                });
-
-                return html;
-            }
-
-            function parseAIResponse(text) {
-                var t = String(text || "").trim();
-
-                // JSON Tool Output Detection (best effort)
-                if (t.length >= 2 && t.charAt(0) === "{" && t.charAt(t.length - 1) === "}") {
+                // --- THEME ---
+                (function initTheme() {
                     try {
-                        var data = JSON.parse(t);
-                        if (data && typeof data === "object") {
-                            if (data.parameters) {
-                                var content = (data.parameters && data.parameters.content) ? String(data.parameters.content) : JSON.stringify(data.parameters, null, 2);
-                                return '<span class="json-badge">TOOL OUTPUT</span><br>' + simpleMarkdown(content);
-                            }
-                            // Generic JSON
-                            var pretty = JSON.stringify(data, null, 2);
-                            return (
-                                '<span class="json-badge">JSON DATA</span>' +
-                                '<pre><button class="copy-btn" type="button" aria-label="Copy code">📋</button><code>' +
-                                escapeHTML(pretty) +
-                                "</code></pre>"
-                            );
+                        var stored = localStorage.getItem("bitnet_theme");
+                        if (stored === "light") document.documentElement.setAttribute("data-theme", "light");
+                        else document.documentElement.removeAttribute("data-theme");
+                    } catch (e) { }
+                })();
+
+                themeToggleBtn.addEventListener("click", function () {
+                    var isLight = document.documentElement.getAttribute("data-theme") === "light";
+                    if (isLight) document.documentElement.removeAttribute("data-theme");
+                    else document.documentElement.setAttribute("data-theme", "light");
+
+                    try {
+                        var nowLight = document.documentElement.getAttribute("data-theme") === "light";
+                        localStorage.setItem("bitnet_theme", nowLight ? "light" : "dark");
+                    } catch (e) { }
+                });
+
+                function formatNumber(n) {
+                    var s = String(Math.round(n));
+                    return s.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                }
+
+                function formatGB(n) {
+                    var v = Math.round(n * 100) / 100;
+                    return (v % 1 === 0) ? String(v.toFixed(0)) : String(v.toFixed(2));
+                }
+
+                function updateContextLabel() {
+                    var chars = MAX_EXTRACT_CHARS;
+                    var tokens = Math.max(1, Math.round(chars / 4)); // rough heuristic
+                    var ramGB = tokens / 16000; // ~1GB per 16k tokens KV cache heuristic
+                    contextLabel.textContent =
+                        "Limit: " + formatNumber(chars) + " chars • ~" +
+                        formatNumber(tokens) + " tokens • ~" +
+                        formatGB(ramGB) + " GB KV";
+                }
+
+                // --- UTIL: Escape HTML (for safe text->HTML) ---
+                function escapeHTML(str) {
+                    return String(str)
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;")
+                        .replace(/'/g, "&#39;");
+                }
+
+                function textToSafeHTMLWithBreaks(str) {
+                    return escapeHTML(String(str || "")).replace(/\n/g, "<br>");
+                }
+
+                function scrollToBottom() {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+
+                // --- UI: Add message ---
+                // addMessage(content, who, isTemp, isHTML) -> elementId
+                function addMessage(content, who, isTemp, isHTML) {
+                    msgCounter += 1;
+                    var id = "msg_" + msgCounter;
+
+                    var el = document.createElement("div");
+                    el.className = "message " + (who === "user" ? "user" : "ai");
+                    el.id = id;
+
+                    if (isHTML) el.innerHTML = content;
+                    else el.textContent = content;
+
+                    if (isTemp) el.setAttribute("data-temp", "1");
+
+                    chatContainer.appendChild(el);
+                    scrollToBottom();
+                    return id;
+                }
+
+                function updateMessage(id, content, isHTML) {
+                    var el = document.getElementById(id);
+                    if (!el) return;
+                    if (isHTML) el.innerHTML = content;
+                    else el.textContent = content;
+                    scrollToBottom();
+                }
+
+                function markMessageAsError(id) {
+                    var el = document.getElementById(id);
+                    if (!el) return;
+                    el.classList.add("error");
+                }
+
+                // --- 1) ROBUST COPY TO CLIPBOARD (HTTP / CSP-safe) ---
+                function copyToClipboard(text, btnElement) {
+                    console.log("--> Copy Action Triggered");
+
+                    function setBtn(icon) {
+                        if (!btnElement) return;
+                        btnElement.textContent = icon;
+                        window.setTimeout(function () {
+                            btnElement.textContent = "📋";
+                        }, 2000);
+                    }
+
+                    function fail(err) {
+                        console.error("Copy failed:", err);
+                        setBtn("❌");
+                        alert("Clipboard Access Blocked.\nPlease select and copy manually.");
+                    }
+
+                    // Strategy A: Modern API (requires HTTPS or localhost)
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(text)
+                            .then(function () { setBtn("✅"); })
+                            .catch(function () { legacyCopy(text); });
+                        return;
+                    }
+
+                    // Strategy B: Legacy textarea hack (works on HTTP)
+                    legacyCopy(text);
+
+                    function legacyCopy(t) {
+                        try {
+                            var ta = document.createElement("textarea");
+                            ta.value = t;
+
+                            ta.style.position = "fixed";
+                            ta.style.left = "0";
+                            ta.style.top = "0";
+                            ta.style.opacity = "0.01";
+                            ta.style.width = "1px";
+                            ta.style.height = "1px";
+
+                            document.body.appendChild(ta);
+                            ta.focus();
+                            ta.select();
+
+                            var ok = document.execCommand("copy");
+                            document.body.removeChild(ta);
+
+                            if (ok) setBtn("✅");
+                            else throw new Error("execCommand returned false");
+                        } catch (e) {
+                            fail(e);
                         }
-                    } catch (e) {
-                        // Not JSON, continue as plain text
                     }
                 }
 
-                return simpleMarkdown(t);
-            }
+                // --- 2) SIMPLE MARKDOWN PARSER (Zero dependencies, code-block safe) ---
+                function simpleMarkdown(rawText) {
+                    var text = String(rawText || "").replace(/\r\n?/g, "\n");
 
-            // --- 3) CORE MESSAGING LOGIC ---
-            async function sendMessage() {
-                var text = inputField.value.trim();
-                if (!text) return;
+                    // Extract fenced code blocks by scanning (robust vs regex)
+                    var codeBlocks = [];
+                    var out = "";
+                    var i = 0;
 
-                // UI updates
-                addMessage(text, "user", false, false);
-                inputField.value = "";
-                inputField.disabled = true;
-                sendBtn.style.display = "none";
-                stopBtn.style.display = "flex";
+                    while (i < text.length) {
+                        var start = text.indexOf("```", i);
+                        if (start === -1) { out += text.slice(i); break; }
 
-                var loadingId = addMessage("Thinking...", "ai", true, false);
-                abortController = new AbortController();
+                        out += text.slice(i, start);
 
-                try {
-                    console.log("Sending request to /completion...");
-                    var response = await fetch("/completion", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        signal: abortController.signal,
-                        body: JSON.stringify({
-                            prompt:
-                                "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful AI assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n" +
-                                text +
-                                "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
-                            n_predict: 2048,
-                            temperature: 0.7,
-                            stop: ["<|eot_id|>"]
-                        })
+                        var fenceStart = start + 3;
+                        var end = text.indexOf("```", fenceStart);
+                        if (end === -1) { out += text.slice(start); break; }
+
+                        var firstNl = text.indexOf("\n", fenceStart);
+                        var lang = "";
+                        var codeStart = fenceStart;
+
+                        if (firstNl !== -1 && firstNl < end) {
+                            lang = text.slice(fenceStart, firstNl).trim();
+                            codeStart = firstNl + 1;
+                        }
+
+                        var code = text.slice(codeStart, end);
+                        var token = "\u0000CODEBLOCK_" + codeBlocks.length + "\u0000";
+                        codeBlocks.push({ lang: lang, code: code });
+                        out += token;
+
+                        i = end + 3;
+                    }
+
+                    var html = escapeHTML(out);
+
+                    html = html.replace(/`([^`\n]+)`/g, function (_, c) {
+                        return '<code class="inline-code">' + c + "</code>";
                     });
 
-                    if (!response.ok) throw new Error("HTTP Error: " + response.status);
+                    html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+                    html = html.replace(/\n/g, "<br>");
 
-                    var data = await response.json();
+                    html = html.replace(/\u0000CODEBLOCK_(\d+)\u0000/g, function (_, idx) {
+                        var block = codeBlocks[Number(idx)];
+                        if (!block) return "";
 
-                    var loadingEl = document.getElementById(loadingId);
-                    if (loadingEl) loadingEl.remove();
+                        var safeCode = escapeHTML(block.code);
+                        var langBadge = block.lang ? '<span class="code-lang">' + escapeHTML(block.lang) + "</span>" : "";
 
-                    var aiContent = data && typeof data.content === "string" ? data.content : JSON.stringify(data);
-                    addMessage(parseAIResponse(aiContent), "ai", false, true);
-                } catch (error) {
-                    var loadingEl2 = document.getElementById(loadingId);
-                    if (loadingEl2) loadingEl2.remove();
+                        return (
+                            '<pre>' +
+                            langBadge +
+                            '<button class="copy-btn" type="button" aria-label="Copy code">📋</button>' +
+                            "<code>" + safeCode + "</code>" +
+                            "</pre>"
+                        );
+                    });
 
-                    if (error && error.name === "AbortError") {
-                        addMessage("🛑 Generation stopped by user.", "ai", false, false);
-                    } else {
-                        console.error(error);
-                        addMessage("Error: " + (error && error.message ? error.message : String(error)), "ai", false, false);
+                    return html;
+                }
+
+                function parseAIResponse(text) {
+                    var t = String(text || "").trim();
+
+                    if (t.length >= 2 && t.charAt(0) === "{" && t.charAt(t.length - 1) === "}") {
+                        try {
+                            var data = JSON.parse(t);
+                            if (data && typeof data === "object") {
+                                if (data.parameters) {
+                                    var content = (data.parameters && data.parameters.content)
+                                        ? String(data.parameters.content)
+                                        : JSON.stringify(data.parameters, null, 2);
+                                    return '<span class="json-badge">TOOL OUTPUT</span><br>' + simpleMarkdown(content);
+                                }
+                                var pretty = JSON.stringify(data, null, 2);
+                                return (
+                                    '<span class="json-badge">JSON DATA</span>' +
+                                    '<pre><button class="copy-btn" type="button" aria-label="Copy code">📋</button><code>' +
+                                    escapeHTML(pretty) +
+                                    "</code></pre>"
+                                );
+                            }
+                        } catch (e) { }
                     }
-                } finally {
-                    inputField.disabled = false;
-                    sendBtn.style.display = "flex";
-                    stopBtn.style.display = "none";
-                    inputField.focus();
-                    abortController = null;
-                }
-            }
 
-            // --- 4) DRAG & DROP HANDLERS ---
-            function handleFileUpload(file) {
-                console.log("File dropped:", file && file.name);
-                var maxBytes = 2 * 1024 * 1024; // 2MB
-                if (!file) return;
-                if (file.size > maxBytes) {
-                    alert("File too large (>2MB).");
-                    return;
+                    return simpleMarkdown(t);
                 }
 
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                    var content = (e && e.target) ? e.target.result : "";
-                    inputField.value =
-                        "\n--- FILE START: " + file.name + " ---\n" +
-                        String(content || "") +
-                        "\n--- FILE END ---\n\nAnalyze this file: ";
-                    inputField.focus();
-                };
-                reader.readAsText(file);
-            }
-
-            window.addEventListener("dragenter", function (e) {
-                e.preventDefault();
-                dragDepth += 1;
-                dropOverlay.style.display = "flex";
-            });
-
-            window.addEventListener("dragover", function (e) {
-                e.preventDefault();
-            });
-
-            window.addEventListener("dragleave", function (e) {
-                // Only hide when fully left window
-                dragDepth = Math.max(0, dragDepth - 1);
-                if (dragDepth === 0) dropOverlay.style.display = "none";
-            });
-
-            window.addEventListener("drop", function (e) {
-                e.preventDefault();
-                dragDepth = 0;
-                dropOverlay.style.display = "none";
-
-                var dt = e.dataTransfer;
-                if (dt && dt.files && dt.files.length > 0) {
-                    handleFileUpload(dt.files[0]);
+                // --- FEATURE 1: Attachment UI helpers ---
+                function formatBytes(bytes) {
+                    var b = Number(bytes) || 0;
+                    if (b < 1024) return b + " B";
+                    var kb = b / 1024;
+                    if (kb < 1024) return (Math.round(kb * 10) / 10) + " KB";
+                    var mb = kb / 1024;
+                    return (Math.round(mb * 10) / 10) + " MB";
                 }
-            });
 
-            // --- 5) EVENT LISTENERS ---
-            stopBtn.addEventListener("click", function () {
-                if (abortController) abortController.abort();
-            });
+                function renderAttachmentChip() {
+                    if (!attachedFileContent) {
+                        attachmentBar.style.display = "none";
+                        return;
+                    }
 
-            sendBtn.addEventListener("click", function () {
-                console.log("Send button clicked");
-                sendMessage();
-            });
+                    attachmentBar.style.display = "block";
 
-            inputField.addEventListener("keydown", function (e) {
-                if (e.key === "Enter") {
+                    var sizeLabel = formatBytes(attachedFileSize);
+                    var extractedLabel = formatNumber(attachedFileContent.length) + " chars";
+                    var truncLabel = attachedWasTruncated ? " — Truncated" : " — Ready";
+
+                    attachmentTextEl.textContent =
+                        "📎 " + (attachedFileName || "file") +
+                        " (" + sizeLabel + ") • " + extractedLabel +
+                        truncLabel;
+                }
+
+                function clearAttachment() {
+                    attachedFileContent = "";
+                    attachedFileName = "";
+                    attachedFileSize = 0;
+                    attachedWasTruncated = false;
+                    renderAttachmentChip();
+                }
+
+                attachmentClearBtn.addEventListener("click", function () {
+                    clearAttachment();
+                });
+
+                // --- BUGFIX #1 + #3: Clamp must NEVER exceed MAX_EXTRACT_CHARS and must reflect current slider limit ---
+                function buildTruncationNotice(limitChars) {
+                    return "\n\n[TRUNCATED: content exceeded " + limitChars + " characters]\n";
+                }
+
+                function stripTrailingTruncationNotice(text) {
+                    return String(text || "").replace(/\n\n\[TRUNCATED: content exceeded \d+ characters\]\n?$/g, "");
+                }
+
+                function clampExtractedText(text) {
+                    var limit = Number(MAX_EXTRACT_CHARS) || 20000;
+                    var base = stripTrailingTruncationNotice(text);
+
+                    if (base.length <= limit) return base;
+
+                    var notice = buildTruncationNotice(limit);
+
+                    // Ensure total length (slice + notice) never exceeds limit.
+                    var maxContentLen = Math.max(0, limit - notice.length);
+                    var sliced = base.slice(0, maxContentLen);
+                    var out = sliced + notice;
+
+                    // Final hard safety (should never hit, but guarantees no overflow)
+                    if (out.length > limit) out = out.slice(0, limit);
+
+                    return out;
+                }
+
+                function reclampAttachmentToCurrentLimit() {
+                    if (!attachedFileContent) return;
+
+                    var base = stripTrailingTruncationNotice(attachedFileContent);
+                    attachedWasTruncated = (base.length > MAX_EXTRACT_CHARS);
+                    attachedFileContent = clampExtractedText(base);
+                }
+
+                // --- CONTEXT SLIDER (Feature 2) ---
+                (function initContextSlider() {
+                    try {
+                        var storedLimit = localStorage.getItem("bitnet_context_chars");
+                        if (storedLimit) {
+                            var parsed = Number(storedLimit);
+                            if (isFinite(parsed) && parsed >= 1000) {
+                                contextSlider.value = String(parsed);
+                            }
+                        }
+                    } catch (e) { }
+
+                    MAX_EXTRACT_CHARS = Number(contextSlider.value) || 20000;
+                    updateContextLabel();
+
+                    contextSlider.addEventListener("input", function () {
+                        MAX_EXTRACT_CHARS = Number(contextSlider.value) || 20000;
+                        updateContextLabel();
+
+                        if (attachedFileContent) {
+                            reclampAttachmentToCurrentLimit();
+                            renderAttachmentChip();
+                        }
+
+                        try {
+                            localStorage.setItem("bitnet_context_chars", String(MAX_EXTRACT_CHARS));
+                        } catch (e) { }
+                    });
+                })();
+
+                // --- SMART FEATURE: Auto-Config via /props (llama.cpp) ---
+                (function initServerPropsSync() {
+                    try {
+                        fetch("/props", { method: "GET", cache: "no-store" })
+                            .then(function (res) {
+                                if (!res || !res.ok) throw new Error("props fetch failed");
+                                return res.json();
+                            })
+                            .then(function (props) {
+                                var nCtx = extractContextTokensFromProps(props);
+                                if (!nCtx || !isFinite(nCtx) || nCtx <= 0) return;
+
+                                var serverChars = Math.max(1000, Math.round((nCtx * 4) / 1000) * 1000);
+
+                                var curMax = Number(contextSlider.max) || 500000;
+                                if (serverChars > curMax) contextSlider.max = String(serverChars);
+
+                                contextSlider.value = String(serverChars);
+                                MAX_EXTRACT_CHARS = serverChars;
+                                updateContextLabel();
+
+                                if (attachedFileContent) {
+                                    reclampAttachmentToCurrentLimit();
+                                    renderAttachmentChip();
+                                }
+
+                                try {
+                                    localStorage.setItem("bitnet_context_chars", String(MAX_EXTRACT_CHARS));
+                                } catch (e) { }
+
+                                console.log("Synced with server limit: " + nCtx + " tokens");
+                                toast("Synced with server limit: " + formatNumber(nCtx) + " tokens");
+                            })
+                            .catch(function () {
+                                // Silent fallback: keep manual behavior.
+                            });
+                    } catch (e) {
+                        // Silent fallback.
+                    }
+
+                    function extractContextTokensFromProps(props) {
+                        var candidates = [
+                            ["default_generation_settings", "n_ctx"],
+                            ["default_generation_settings", "context_length"],
+                            ["default_generation_settings", "ctx_size"],
+                            ["default_generation_settings", "n_ctx_train"],
+                            ["n_ctx"],
+                            ["context_length"],
+                            ["n_ctx_train"],
+                            ["model", "n_ctx"],
+                            ["model", "n_ctx_train"],
+                            ["llama", "n_ctx"],
+                            ["llama", "n_ctx_train"]
+                        ];
+
+                        for (var i = 0; i < candidates.length; i++) {
+                            var v = getNested(props, candidates[i]);
+                            var n = normalizePositiveInt(v);
+                            if (n) return n;
+                        }
+                        return 0;
+                    }
+
+                    function getNested(obj, path) {
+                        var cur = obj;
+                        for (var i = 0; i < path.length; i++) {
+                            if (!cur || typeof cur !== "object") return undefined;
+                            cur = cur[path[i]];
+                        }
+                        return cur;
+                    }
+
+                    function normalizePositiveInt(v) {
+                        if (typeof v === "number" && isFinite(v)) {
+                            var n = Math.floor(v);
+                            return n > 0 ? n : 0;
+                        }
+                        if (typeof v === "string") {
+                            var parsed = parseInt(v, 10);
+                            return isFinite(parsed) && parsed > 0 ? parsed : 0;
+                        }
+                        return 0;
+                    }
+                })();
+
+                // --- 3) CORE MESSAGING LOGIC (with hidden context injection) ---
+                async function sendMessage() {
+                    var userMessage = inputField.value.trim();
+                    var hasAttachmentPre = !!attachedFileContent;
+
+                    // BUGFIX #2: Allow sending if input is empty BUT attachment exists.
+                    if (!userMessage && !hasAttachmentPre) return;
+
+                    var hasAttachment = hasAttachmentPre;
+                    var fileNameForDisplay = attachedFileName;
+                    var attachmentBlock = "";
+
+                    if (hasAttachment) {
+                        reclampAttachmentToCurrentLimit();
+
+                        attachmentBlock =
+                            "[Content of file '" + (attachedFileName || "unknown") + "']\n" +
+                            attachedFileContent +
+                            "\n[End of file '" + (attachedFileName || "unknown") + "']";
+
+                        clearAttachment();
+                    }
+
+                    var finalPrompt = hasAttachment ? (attachmentBlock + (userMessage ? ("\n\n" + userMessage) : "")) : userMessage;
+
+                    var userHtml = "";
+                    if (userMessage) {
+                        userHtml = "<div>" + textToSafeHTMLWithBreaks(userMessage) + "</div>";
+                    } else {
+                        userHtml = "<div><em>📎 Sent attachment</em></div>";
+                    }
+
+                    if (hasAttachment) {
+                        userHtml += '<div class="user-meta">[Analyzed file: ' + escapeHTML(fileNameForDisplay || "unknown") + "]</div>";
+                    }
+                    addMessage(userHtml, "user", false, true);
+
+                    inputField.value = "";
+                    inputField.disabled = true;
+                    sendBtn.style.display = "none";
+                    stopBtn.style.display = "flex";
+
+                    var loadingId = addMessage("Thinking...", "ai", true, false);
+                    abortController = new AbortController();
+
+                    try {
+                        console.log("Sending request to /completion...");
+                        var response = await fetch("/completion", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            signal: abortController.signal,
+                            body: JSON.stringify({
+                                prompt:
+                                    "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful AI assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n" +
+                                    finalPrompt +
+                                    "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+                                n_predict: 2048,
+                                temperature: 0.7,
+                                stop: ["<|eot_id|>"]
+                            })
+                        });
+
+                        // v1.11: Smart Error Handling (Human Translator)
+                        if (!response.ok) {
+                            if (response.status === 400) {
+                                var humanErr = new Error(
+                                    "⚠️ **Context Limit Exceeded:** The combined file and message are too long for this model. Please reduce the Context Slider or shorten your message."
+                                );
+                                humanErr.isHuman = true;
+                                throw humanErr;
+                            }
+                            throw new Error("HTTP Error: " + response.status);
+                        }
+
+                        var data = await response.json();
+                        var loadingEl = document.getElementById(loadingId);
+                        if (loadingEl) loadingEl.remove();
+
+                        var aiContent = data && typeof data.content === "string" ? data.content : JSON.stringify(data);
+                        addMessage(parseAIResponse(aiContent), "ai", false, true);
+                    } catch (error) {
+                        var loadingEl2 = document.getElementById(loadingId);
+                        if (loadingEl2) loadingEl2.remove();
+
+                        if (error && error.name === "AbortError") {
+                            addMessage("🛑 Generation stopped by user.", "ai", false, false);
+                        } else {
+                            console.error(error);
+
+                            var msg = (error && error.message) ? error.message : String(error);
+                            var isHuman = !!(error && error.isHuman);
+
+                            var html = isHuman
+                                ? simpleMarkdown(msg)
+                                : simpleMarkdown("Error: " + msg);
+
+                            var errId = addMessage(html, "ai", false, true);
+                            markMessageAsError(errId);
+                        }
+                    } finally {
+                        inputField.disabled = false;
+                        sendBtn.style.display = "flex";
+                        stopBtn.style.display = "none";
+                        inputField.focus();
+                        abortController = null;
+                    }
+                }
+
+                // --- 4) RICH FILE SUPPORT (Issue #4) + QoL changes (Feature 1/2) ---
+                function detectRichParsingSupport() {
+                    var pdfOk = false, docxOk = false, xlsxOk = false;
+
+                    try { pdfOk = !!(window.pdfjsLib && typeof window.pdfjsLib.getDocument === "function"); } catch (e) { pdfOk = false; }
+                    try { docxOk = !!(window.mammoth && typeof window.mammoth.extractRawText === "function"); } catch (e) { docxOk = false; }
+                    try { xlsxOk = !!(window.XLSX && typeof window.XLSX.read === "function"); } catch (e) { xlsxOk = false; }
+
+                    if (!pdfOk) console.warn("[Rich File Support] pdf.js not available. PDF parsing disabled (offline/CSP/CDN blocked).");
+                    if (!docxOk) console.warn("[Rich File Support] mammoth.js not available. DOCX parsing disabled (offline/CSP/CDN blocked).");
+                    if (!xlsxOk) console.warn("[Rich File Support] xlsx (SheetJS) not available. XLSX parsing disabled (offline/CSP/CDN blocked).");
+
+                    if (pdfOk) {
+                        try {
+                            if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
+                                window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                                    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js";
+                            }
+                        } catch (e) {
+                            console.warn("[Rich File Support] pdf.js worker config skipped:", e);
+                        }
+                    }
+
+                    return { pdf: pdfOk, docx: docxOk, xlsx: xlsxOk };
+                }
+
+                function updateDropOverlayText(support) {
+                    var anyRich = !!(support.pdf || support.docx || support.xlsx);
+                    dropOverlay.textContent = anyRich
+                        ? "📂 DROP FILE (TXT / PDF / DOCX / XLSX)"
+                        : "📂 DROP TEXT FILE (TXT / MD / CSV / JSON)";
+                }
+
+                function getFileKind(file) {
+                    var name = (file && file.name ? file.name : "").toLowerCase();
+                    var type = (file && file.type ? file.type : "").toLowerCase();
+
+                    if (type === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+                    if (type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || name.endsWith(".docx")) return "docx";
+                    if (
+                        type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+                        type === "application/vnd.ms-excel" ||
+                        name.endsWith(".xlsx") || name.endsWith(".xls")
+                    ) return "xlsx";
+
+                    if (type.startsWith("text/") || name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".csv") || name.endsWith(".json") || name.endsWith(".log")) {
+                        return "text";
+                    }
+                    return "unknown";
+                }
+
+                function readFileAsText(file) {
+                    return new Promise(function (resolve, reject) {
+                        var reader = new FileReader();
+                        reader.onerror = function () { reject(new Error("Failed to read text file.")); };
+                        reader.onload = function (e) { resolve((e && e.target) ? e.target.result : ""); };
+                        reader.readAsText(file);
+                    });
+                }
+
+                function readFileAsArrayBuffer(file) {
+                    return new Promise(function (resolve, reject) {
+                        var reader = new FileReader();
+                        reader.onerror = function () { reject(new Error("Failed to read binary file.")); };
+                        reader.onload = function (e) { resolve((e && e.target) ? e.target.result : null); };
+                        reader.readAsArrayBuffer(file);
+                    });
+                }
+
+                async function extractTextFromPDF(file) {
+                    if (!rich.pdf) throw new Error("PDF parsing is disabled (pdf.js not available).");
+
+                    var ab = await readFileAsArrayBuffer(file);
+                    if (!ab) throw new Error("Empty PDF data.");
+
+                    var pdfjsLib = window.pdfjsLib;
+                    var loadingTask = pdfjsLib.getDocument({
+                        data: new Uint8Array(ab),
+                        disableWorker: true,
+                        isEvalSupported: false
+                    });
+
+                    var pdf = await loadingTask.promise;
+                    var totalPages = Math.min(pdf.numPages || 0, MAX_PDF_PAGES);
+
+                    var parts = [];
+                    for (var p = 1; p <= totalPages; p++) {
+                        var page = await pdf.getPage(p);
+                        var tc = await page.getTextContent();
+
+                        var line = "";
+                        var pageTextParts = [];
+                        for (var i = 0; i < tc.items.length; i++) {
+                            var it = tc.items[i];
+                            var s = (it && it.str) ? it.str : "";
+                            if (!s) continue;
+
+                            line += s;
+
+                            if (it.hasEOL) {
+                                pageTextParts.push(line.trim());
+                                line = "";
+                            } else {
+                                line += " ";
+                            }
+
+                            if ((parts.join("\n\n").length + pageTextParts.join("\n").length) > (MAX_EXTRACT_CHARS * 1.1)) {
+                                break;
+                            }
+                        }
+                        if (line.trim()) pageTextParts.push(line.trim());
+
+                        parts.push("=== Page " + p + " ===\n" + pageTextParts.join("\n"));
+                    }
+
+                    if (pdf.numPages > totalPages) {
+                        parts.push("\n[NOTE: PDF has " + pdf.numPages + " pages; only first " + totalPages + " pages were extracted.]\n");
+                    }
+
+                    return parts.join("\n\n");
+                }
+
+                async function extractTextFromDOCX(file) {
+                    if (!rich.docx) throw new Error("DOCX parsing is disabled (mammoth.js not available).");
+
+                    var ab = await readFileAsArrayBuffer(file);
+                    if (!ab) throw new Error("Empty DOCX data.");
+
+                    var result = await window.mammoth.extractRawText({ arrayBuffer: ab });
+                    return (result && typeof result.value === "string") ? result.value : "";
+                }
+
+                async function extractTextFromXLSX(file) {
+                    if (!rich.xlsx) throw new Error("XLSX parsing is disabled (SheetJS not available).");
+
+                    var ab = await readFileAsArrayBuffer(file);
+                    if (!ab) throw new Error("Empty XLSX data.");
+
+                    var wb = window.XLSX.read(ab, { type: "array" });
+                    var sheetNames = wb.SheetNames || [];
+                    if (!sheetNames.length) return "";
+
+                    var out = [];
+                    for (var s = 0; s < sheetNames.length; s++) {
+                        var name = sheetNames[s];
+                        var ws = wb.Sheets[name];
+                        if (!ws) continue;
+
+                        var tsv = window.XLSX.utils.sheet_to_csv(ws, { FS: "\t", RS: "\n" });
+                        out.push("=== Sheet: " + name + " ===\n" + (tsv || ""));
+
+                        if (out.join("\n\n").length > (MAX_EXTRACT_CHARS * 1.1)) break;
+                    }
+                    return out.join("\n\n");
+                }
+
+                async function handleFileUpload(file) {
+                    console.log("File dropped:", file && file.name);
+
+                    if (!file) return;
+                    if (file.size > MAX_FILE_BYTES) {
+                        addMessage("File too large (> " + (MAX_FILE_BYTES / (1024 * 1024)) + "MB).", "ai", false, false);
+                        return;
+                    }
+
+                    var kind = getFileKind(file);
+                    var statusId = addMessage("📎 Loading '" + file.name + "' ...", "ai", true, false);
+
+                    try {
+                        var extracted = "";
+
+                        if (kind === "pdf") {
+                            if (!rich.pdf) {
+                                updateMessage(statusId, "⚠️ PDF parsing unavailable (offline/CSP/CDN blocked). Drop a text file instead.", false);
+                                return;
+                            }
+                            updateMessage(statusId, "📄 Extracting text from PDF: " + file.name + " ...", false);
+                            extracted = await extractTextFromPDF(file);
+                        } else if (kind === "docx") {
+                            if (!rich.docx) {
+                                updateMessage(statusId, "⚠️ DOCX parsing unavailable (offline/CSP/CDN blocked). Drop a text file instead.", false);
+                                return;
+                            }
+                            updateMessage(statusId, "📝 Extracting text from DOCX: " + file.name + " ...", false);
+                            extracted = await extractTextFromDOCX(file);
+                        } else if (kind === "xlsx") {
+                            if (!rich.xlsx) {
+                                updateMessage(statusId, "⚠️ XLSX parsing unavailable (offline/CSP/CDN blocked). Drop a text file instead.", false);
+                                return;
+                            }
+                            updateMessage(statusId, "📊 Extracting text from spreadsheet: " + file.name + " ...", false);
+                            extracted = await extractTextFromXLSX(file);
+                        } else if (kind === "text") {
+                            updateMessage(statusId, "📄 Reading text file: " + file.name + " ...", false);
+                            extracted = await readFileAsText(file);
+                        } else {
+                            updateMessage(statusId, "⚠️ Unsupported file type. Drop TXT/MD/CSV/JSON (or enable rich parsing for PDF/DOCX/XLSX).", false);
+                            return;
+                        }
+
+                        var rawLen = String(extracted || "").length;
+                        attachedWasTruncated = (rawLen > MAX_EXTRACT_CHARS);
+
+                        var clamped = clampExtractedText(extracted);
+
+                        attachedFileContent = clamped;
+                        attachedFileName = file.name || "unknown";
+                        attachedFileSize = file.size || 0;
+
+                        renderAttachmentChip();
+
+                        updateMessage(statusId, "✅ Attached '" + attachedFileName + "' (" + formatNumber(attachedFileContent.length) + " chars extracted).", false);
+                        inputField.focus();
+                    } catch (err) {
+                        console.error("[File Parsing Error]", err);
+                        updateMessage(statusId, "❌ Failed to parse '" + file.name + "': " + (err && err.message ? err.message : String(err)), false);
+                    }
+                }
+
+                // --- 5) DRAG & DROP HANDLERS ---
+                window.addEventListener("dragenter", function (e) {
                     e.preventDefault();
-                    console.log("Enter key pressed");
+                    dragDepth += 1;
+                    dropOverlay.style.display = "flex";
+                });
+
+                window.addEventListener("dragover", function (e) {
+                    e.preventDefault();
+                });
+
+                window.addEventListener("dragleave", function (e) {
+                    dragDepth = Math.max(0, dragDepth - 1);
+                    if (dragDepth === 0) dropOverlay.style.display = "none";
+                });
+
+                window.addEventListener("drop", function (e) {
+                    e.preventDefault();
+                    dragDepth = 0;
+                    dropOverlay.style.display = "none";
+
+                    var dt = e.dataTransfer;
+                    if (dt && dt.files && dt.files.length > 0) {
+                        var first = dt.files[0];
+
+                        if (dt.files.length > 1) {
+                            // v1.11: Friendlier single-file mode messaging
+                            var msg = "ℹ️ Single File Mode: Only the first file was attached.";
+                            toast(msg, 3200);
+                            addMessage(msg + (first && first.name ? (" (" + first.name + ")") : ""), "ai", false, false);
+                        }
+
+                        handleFileUpload(first);
+                    }
+                });
+
+                // --- 6) EVENT LISTENERS ---
+                stopBtn.addEventListener("click", function () {
+                    if (abortController) abortController.abort();
+                });
+
+                sendBtn.addEventListener("click", function () {
+                    console.log("Send button clicked");
                     sendMessage();
-                }
-            });
+                });
 
-            // CSP-safe Copy button handler via event delegation (no inline onclick)
-            chatContainer.addEventListener("click", function (e) {
-                var target = e.target;
-                if (!target || !target.classList) return;
+                inputField.addEventListener("keydown", function (e) {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        console.log("Enter key pressed");
+                        sendMessage();
+                    }
+                });
 
-                if (target.classList.contains("copy-btn")) {
-                    var pre = target.closest("pre");
-                    if (!pre) return;
-                    var codeEl = pre.querySelector("code");
-                    var codeText = codeEl ? codeEl.textContent : "";
-                    copyToClipboard(codeText, target);
-                }
-            });
+                // CSP-safe Copy button handler via event delegation (no inline onclick)
+                chatContainer.addEventListener("click", function (e) {
+                    var target = e.target;
+                    if (!target || !target.classList) return;
 
-            console.log(">>> UI Ready. Event listeners attached.");
+                    if (target.classList.contains("copy-btn")) {
+                        var pre = target.closest("pre");
+                        if (!pre) return;
+                        var codeEl = pre.querySelector("code");
+                        var codeText = codeEl ? codeEl.textContent : "";
+                        copyToClipboard(codeText, target);
+                    }
+                });
+
+                // v1.11: Explicit UI messaging (welcome/info message in boot)
+                var richEnabled = rich.pdf || rich.docx || rich.xlsx;
+                addMessage(
+                    richEnabled
+                        ? "Rich File Support: enabled for " +
+                        (rich.pdf ? "PDF " : "") +
+                        (rich.docx ? "DOCX " : "") +
+                        (rich.xlsx ? "XLSX " : "") +
+                        "\nDrop a file (Single file support) to attach extracted text as hidden context (no upload)."
+                        : "Rich File Support: disabled (offline/CSP/CDN blocked). Text-only drag & drop is active.\nSingle file support only.",
+                    "ai",
+                    false,
+                    false
+                );
+
+                console.log(">>> UI Ready. Event listeners attached.");
+            }
+
+            // Boot after DOM is ready (ensures deferred CDN scripts have a chance to run first)
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", boot);
+            } else {
+                boot();
+            }
         })();
     </script>
 </body>
